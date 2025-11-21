@@ -1,0 +1,24 @@
+[workspace]
+authors = ["jpsch <jpsch@dtu.dk>"]
+channels = ["conda-forge"]
+name = "spo-pywake-dataset"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+python = "3.12.*"
+numba = ">=0.62.1,<0.63"
+numpy = ">=2.3.5,<3"
+pandas = ">=2.3.3,<3"
+matplotlib = ">=3.10.8,<4"
+pytorch = ">=2.8.0,<3"
+tqdm = ">=4.67.1,<5"
+ipykernel = ">=7.1.0,<8"
+jupyter = ">=1.1.1,<2"
+
+
+[pypi-dependencies]
+py-wake = ">=2.6.14, <3"
+torch-geometric = ">=2.7.0, <3"

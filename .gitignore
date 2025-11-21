@@ -1,0 +1,14 @@
+*.nc
+*.png
+*.zip
+*.pyc
+*.pdf
+*.err
+*.log
+data/*
+# pixi environments
+.pixi
+*.egg-info
+
+!*layout_and_inflow.pdf
+!*layout_and_inflow.png
