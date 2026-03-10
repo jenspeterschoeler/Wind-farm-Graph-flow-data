@@ -5,10 +5,10 @@ from the [1] paper.
 [1] - Harrison-Atlas, D., Glaws, A., King, R. N., & Lantz, E. (2024). Artificial intelligence-aided wind plant optimization for nationwide evaluation of land use and economic benefits of wake steering. Nature Energy, 9(6), 735–749. https://doi.org/10.1038/s41560-024-01516-8
 """
 
-import os
+import logging
+
 import numpy as np
 from scipy.stats import truncnorm
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +24,7 @@ layout_limits_run1 = {
 
 def rotate_xy(xy, angle):
     angle = np.deg2rad(angle)
-    rotation_matrix = np.array(
-        [[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]
-    )
+    rotation_matrix = np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
     return np.dot(xy, rotation_matrix)
 
 
@@ -107,6 +105,71 @@ def sample_truncated_normal_floats(low, high, mean, std, size):
     return samples
 
 
+def layout_fits_in_bounds(
+    layout: np.ndarray,
+    x_max: float = 64.0,
+    y_max: float = 128.0,
+) -> bool:
+    """
+    Check if a layout fits within specified bounds.
+
+    The layout is assumed to be centered, so we check if all turbines fall within
+    ±x_max in the streamwise (x) direction and ±y_max in the crosswind (y) direction.
+
+    Args:
+        layout: Array of shape (n_turbines, 2) with positions in rotor diameters (D)
+        x_max: Maximum extent in streamwise direction (±x_max, so total is 2*x_max=64D default)
+        y_max: Maximum extent in crosswind direction (±y_max, so total is 2*y_max=256D default)
+
+    Returns:
+        bool: True if layout fits within bounds, False otherwise
+    """
+    # Center the layout around origin
+    x_centered = layout[:, 0] - layout[:, 0].mean()
+    y_centered = layout[:, 1] - layout[:, 1].mean()
+
+    # Check bounds
+    x_extent = max(abs(x_centered.min()), abs(x_centered.max()))
+    y_extent = max(abs(y_centered.min()), abs(y_centered.max()))
+
+    fits = x_extent <= x_max and y_extent <= y_max
+
+    if not fits:
+        logger.debug(
+            f"Layout exceeds bounds: x_extent={x_extent:.1f}D (max={x_max}D), "
+            f"y_extent={y_extent:.1f}D (max={y_max}D)"
+        )
+
+    return fits
+
+
+def get_layout_extents(layout: np.ndarray) -> dict:
+    """
+    Get the extents of a layout in both directions.
+
+    Args:
+        layout: Array of shape (n_turbines, 2) with positions in rotor diameters (D)
+
+    Returns:
+        dict: Dictionary with x_range, y_range, x_extent, y_extent (centered)
+    """
+    x_range = layout[:, 0].max() - layout[:, 0].min()
+    y_range = layout[:, 1].max() - layout[:, 1].min()
+
+    # Centered extents
+    x_centered = layout[:, 0] - layout[:, 0].mean()
+    y_centered = layout[:, 1] - layout[:, 1].mean()
+    x_extent = max(abs(x_centered.min()), abs(x_centered.max()))
+    y_extent = max(abs(y_centered.min()), abs(y_centered.max()))
+
+    return {
+        "x_range": x_range,
+        "y_range": y_range,
+        "x_extent": x_extent,
+        "y_extent": y_extent,
+    }
+
+
 class PLayGen:
     # Plant Layout Generator (PLayGen)
     def __init__(
@@ -121,7 +184,7 @@ class PLayGen:
         breaks=None,
         noise=None,
     ):
-        super(PLayGen, self).__init__()
+        super().__init__()
 
         # Style of wind plant to generate
         #   Must be one of ['cluster', 'single string', 'multiple string', 'parallel string']
@@ -166,7 +229,7 @@ class PLayGen:
         elif style == "parallel string":
             layout_data = self.random_parallel_string_layout()
         else:
-            assert False, "Bad wind plant layout style."
+            raise AssertionError("Bad wind plant layout style.")
 
         return layout_data
 
@@ -188,17 +251,15 @@ class PLayGen:
                 "multiple string",
                 "parallel string",
             ]
-            assert style.lower() in valid_styles, "Invalid layout style: {}".format(
-                style
-            )
+            assert style.lower() in valid_styles, f"Invalid layout style: {style}"
             style = style.lower()
         self.layout_style = style
 
     def set_N_turbs(self, N_turbs):
         # Set the number of turbines. Must be integer or None. If None, N_turbs is randomly chosen for each sample.
-        assert (N_turbs is None) or (
-            (N_turbs % 1.0 == 0.0) and (N_turbs > 0)
-        ), "Bad number of turbines."
+        assert (N_turbs is None) or ((N_turbs % 1.0 == 0.0) and (N_turbs > 0)), (
+            "Bad number of turbines."
+        )
         self.N_turbs = N_turbs
 
     def set_spacing(self, spacing, spacing_units=None):
@@ -228,9 +289,7 @@ class PLayGen:
     def set_breaks(self, breaks):
         # Set the number of breaks in turbine strings.
         if (breaks is not None) and (not isinstance(breaks, list)):
-            assert (breaks > 0.0) and (
-                breaks % 1.0 == 0.0
-            ), "Breaks must be list of break sizes."
+            assert (breaks > 0.0) and (breaks % 1.0 == 0.0), "Breaks must be list of break sizes."
             breaks = [int(breaks)]
         self.breaks = breaks
 
@@ -251,9 +310,7 @@ class PLayGen:
         a, b = (np.log(a) - mu_norm) / sigma_norm, (np.log(b) - mu_norm) / sigma_norm
 
         return np.exp(
-            truncnorm.ppf(
-                np.random.uniform(size=size), a, b, loc=mu_norm, scale=sigma_norm
-            )
+            truncnorm.ppf(np.random.uniform(size=size), a, b, loc=mu_norm, scale=sigma_norm)
         )
 
     def _interturbine_spacing_(self, x, y):
@@ -314,23 +371,19 @@ class PLayGen:
         N_turbs = break_idx.size
 
         # Construct correlated noise array for to turbine locations
-        noise = np.random.choice(
-            a=noise * np.array([-0.01, 0, 0.01]), size=(10 * N_turbs,)
-        ).cumsum(0)[::10]
+        noise = np.random.choice(a=noise * np.array([-0.01, 0, 0.01]), size=(10 * N_turbs,)).cumsum(
+            0
+        )[::10]
         noise -= noise[0]
         noise -= np.linspace(0, 1, noise.size) * noise[-1]
 
         # Build sting of turbines
         x, y = np.linspace(-1.0, 1.0, N_turbs), np.ones((N_turbs,))
 
-        phi = np.array(
-            [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
-        )
+        phi = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
         xy = R * (
             phi
-            @ np.concatenate(
-                (x.reshape((1, N_turbs)), (noise * y).reshape((1, N_turbs))), axis=0
-            )
+            @ np.concatenate((x.reshape((1, N_turbs)), (noise * y).reshape((1, N_turbs))), axis=0)
         )
         x, y = xy[0, break_idx], xy[1, break_idx]
 
@@ -353,24 +406,16 @@ class PLayGen:
         if self.spacing is None:
             d_turb = self.D * np.random.uniform(low=2.5, high=7)
         else:
-            d_turb = (
-                self.spacing if self.spacing_units == "m" else self.D * self.spacing
-            )
+            d_turb = self.spacing if self.spacing_units == "m" else self.D * self.spacing
 
         # Set orientation of string
         if self.angle is None:
             theta = np.random.uniform(low=0.0, high=2.0 * np.pi)
         else:
-            theta = (
-                self.angle
-                if self.angle_units == "radians"
-                else (np.pi / 180.0) * self.angle
-            )
+            theta = self.angle if self.angle_units == "radians" else (np.pi / 180.0) * self.angle
 
         # Set noise level for string
-        noise_level = (
-            np.random.uniform(low=0.25, high=0.5) if self.noise is None else self.noise
-        )
+        noise_level = np.random.uniform(low=0.25, high=0.5) if self.noise is None else self.noise
 
         # Set the radius for a circular domain of the wind plant string
         R = 0.48 * d_turb * (N + np.sum(string_breaks))
@@ -400,60 +445,45 @@ class PLayGen:
         if self.spacing is None:
             d_turb = self.D * np.random.uniform(low=2.5, high=7)
         else:
-            d_turb = (
-                self.spacing if self.spacing_units == "m" else self.D * self.spacing
-            )
+            d_turb = self.spacing if self.spacing_units == "m" else self.D * self.spacing
 
         # Set the general orientation of the wind plant
         if self.angle is None:
             theta = np.random.uniform(low=0.0, high=2.0 * np.pi)
         else:
-            theta = (
-                self.angle
-                if self.angle_units == "radians"
-                else (np.pi / 180.0) * self.angle
-            )
+            theta = self.angle if self.angle_units == "radians" else (np.pi / 180.0) * self.angle
 
         # Distribute the N turbines across N_string strings
         N_per_string = self._distribute_turbines_(N, N_string)
 
         # Define the wind plant domain
-        d_x, d_y = np.random.uniform(low=d_turb, high=8 * self.D), np.random.uniform(
-            low=d_turb, high=8 * self.D
+        d_x, d_y = (
+            np.random.uniform(low=d_turb, high=8 * self.D),
+            np.random.uniform(low=d_turb, high=8 * self.D),
         )
-        domain = (
-            0.8 * np.sqrt(N) * np.sqrt(N_string) * np.array([[-d_x, d_x], [-d_y, d_y]])
-        )
+        domain = 0.8 * np.sqrt(N) * np.sqrt(N_string) * np.array([[-d_x, d_x], [-d_y, d_y]])
 
         # Set turbine locations for each string
         x, y, min_d_turb_by_str = np.zeros((0,)), np.zeros((0,)), []
-        for i, N_i in enumerate(N_per_string):
+        for _i, N_i in enumerate(N_per_string):
             count = 0
 
             # Set number and size of breaks in the ith string
-            string_breaks = (
-                self._random_breaks_(N_i) if self.breaks != [] else self.breaks
-            )
+            string_breaks = self._random_breaks_(N_i) if self.breaks != [] else self.breaks
 
             # Set noise level for string
             noise_level = (
-                np.random.uniform(low=0.25, high=0.75)
-                if self.noise is None
-                else self.noise
+                np.random.uniform(low=0.25, high=0.75) if self.noise is None else self.noise
             )
 
             # Set the radius for a circular domain of the wind plant string
             R = 0.46 * d_turb * (N_i + np.sum(string_breaks))
 
             # Set string orientation as perturbation to general wind plant orientation
-            theta_i = truncnorm.ppf(
-                np.random.uniform(), -1.12, 1.12, loc=theta, scale=0.5
-            )
+            theta_i = truncnorm.ppf(np.random.uniform(), -1.12, 1.12, loc=theta, scale=0.5)
 
             # Generate string of turbines
-            x_i, y_i = self._generate_string_(
-                N_i, R, theta_i, string_breaks, noise_level
-            )
+            x_i, y_i = self._generate_string_(N_i, R, theta_i, string_breaks, noise_level)
 
             # Place string in the domain
             x_c = np.random.uniform(low=domain[0, 0] + R, high=domain[0, 1] - R)
@@ -481,17 +511,12 @@ class PLayGen:
                     d_x += self.D
                     d_y += self.D
                     domain = (
-                        0.8
-                        * np.sqrt(N)
-                        * np.sqrt(N_string)
-                        * np.array([[-d_x, d_x], [-d_y, d_y]])
+                        0.8 * np.sqrt(N) * np.sqrt(N_string) * np.array([[-d_x, d_x], [-d_y, d_y]])
                     )
 
                     count = 0
 
-            x, y = np.concatenate((x, x_i_c), axis=0), np.concatenate(
-                (y, y_i_c), axis=0
-            )
+            x, y = np.concatenate((x, x_i_c), axis=0), np.concatenate((y, y_i_c), axis=0)
 
         wind_plant = np.concatenate(
             (x.reshape((N, 1)) - np.mean(x), y.reshape((N, 1)) - np.mean(y)), axis=1
@@ -515,19 +540,13 @@ class PLayGen:
         if self.spacing is None:
             d_turb = self.D * np.random.uniform(low=2.5, high=7)
         else:
-            d_turb = (
-                self.spacing if self.spacing_units == "m" else self.D * self.spacing
-            )
+            d_turb = self.spacing if self.spacing_units == "m" else self.D * self.spacing
 
         # Set the general orientation of the wind plant
         if self.angle is None:
             theta = np.random.uniform(low=0.0, high=2.0 * np.pi)
         else:
-            theta = (
-                self.angle
-                if self.angle_units == "radians"
-                else (np.pi / 180.0) * self.angle
-            )
+            theta = self.angle if self.angle_units == "radians" else (np.pi / 180.0) * self.angle
 
         # Distribute the N turbines across N_string strings
         N_per_string = self._distribute_turbines_(N, N_string)
@@ -541,12 +560,7 @@ class PLayGen:
 
         # Identify the longest parallel string
         longest_string = int(
-            np.max(
-                [
-                    N_i + np.sum(breaks_i)
-                    for N_i, breaks_i in zip(N_per_string, string_breaks)
-                ]
-            )
+            np.max([N_i + np.sum(breaks_i) for N_i, breaks_i in zip(N_per_string, string_breaks)])
         )
 
         # Set the radius for a circular domain of the wind plant string
@@ -557,12 +571,9 @@ class PLayGen:
 
         x, y = np.zeros((0,)), np.zeros((0,))
         for i, (N_i, breaks_i) in enumerate(zip(N_per_string, string_breaks)):
-
             # Set noise level for string
             noise_level = (
-                np.random.uniform(low=0.25, high=0.75)
-                if self.noise is None
-                else self.noise
+                np.random.uniform(low=0.25, high=0.75) if self.noise is None else self.noise
             )
 
             # Set the radius for a circular domain of the wind plant string
@@ -581,9 +592,7 @@ class PLayGen:
             y -= np.min(y)
 
         # Center and rotate the wind plant
-        phi = np.array(
-            [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
-        )
+        phi = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
         wind_plant = (
             phi
             @ np.concatenate(
@@ -612,9 +621,7 @@ class PLayGen:
         if self.spacing is None:
             d_turb = self.D * np.random.uniform(low=2.5, high=7)
         else:
-            d_turb = (
-                self.spacing if self.spacing_units == "m" else self.D * self.spacing
-            )
+            d_turb = self.spacing if self.spacing_units == "m" else self.D * self.spacing
 
         d_turb_min, d_turb_max = 0.95 * d_turb, 1.05 * d_turb
 
@@ -627,13 +634,12 @@ class PLayGen:
                 idx = np.random.randint(0, i)
             else:
                 idx = i
-            alpha, R = np.random.uniform(0, 2 * np.pi), np.random.uniform(
-                d_turb_min, d_turb_max
-            )
+            alpha, R = np.random.uniform(0, 2 * np.pi), np.random.uniform(d_turb_min, d_turb_max)
             x_i, y_i = x[idx] + R * np.cos(alpha), y[idx] + R * np.sin(alpha)
             while np.min((x[:i] - x_i) ** 2 + (y[:i] - y_i) ** 2) < d_turb_min**2:
-                alpha, R = np.random.uniform(0, 2 * np.pi), np.random.uniform(
-                    d_turb_min, d_turb_max
+                alpha, R = (
+                    np.random.uniform(0, 2 * np.pi),
+                    np.random.uniform(d_turb_min, d_turb_max),
                 )
                 x_i, y_i = x[idx] + R * np.cos(alpha), y[idx] + R * np.sin(alpha)
 

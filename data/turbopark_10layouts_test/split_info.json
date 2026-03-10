@@ -1,0 +1,81 @@
+{
+  "description": "Train/val/test split assignments for wind farm layouts",
+  "split_parameters": {
+    "seed": 42,
+    "train_frac": 0.6,
+    "val_frac": 0.2,
+    "test_frac": 0.2
+  },
+  "summary": {
+    "total_layouts": 10,
+    "n_train": 6,
+    "n_val": 2,
+    "n_test": 2
+  },
+  "train": [
+    {
+      "layout_idx": 5,
+      "type": "parallel string",
+      "spacing": 3.740226422143719,
+      "n_turbines": 159
+    },
+    {
+      "layout_idx": 6,
+      "type": "parallel string",
+      "spacing": 3.3718265299051247,
+      "n_turbines": 18
+    },
+    {
+      "layout_idx": 0,
+      "type": "single string",
+      "spacing": 5.536586284342701,
+      "n_turbines": 27
+    },
+    {
+      "layout_idx": 7,
+      "type": "cluster",
+      "spacing": 5.937098783490636,
+      "n_turbines": 62
+    },
+    {
+      "layout_idx": 3,
+      "type": "parallel string",
+      "spacing": 3.4827846075804403,
+      "n_turbines": 166
+    },
+    {
+      "layout_idx": 2,
+      "type": "multiple string",
+      "spacing": 4.6473058110194945,
+      "n_turbines": 13
+    }
+  ],
+  "val": [
+    {
+      "layout_idx": 4,
+      "type": "parallel string",
+      "spacing": 8.646800830475648,
+      "n_turbines": 29
+    },
+    {
+      "layout_idx": 9,
+      "type": "cluster",
+      "spacing": 7.11755233748817,
+      "n_turbines": 119
+    }
+  ],
+  "test": [
+    {
+      "layout_idx": 1,
+      "type": "multiple string",
+      "spacing": 5.305890169505008,
+      "n_turbines": 10
+    },
+    {
+      "layout_idx": 8,
+      "type": "cluster",
+      "spacing": 7.541048620701017,
+      "n_turbines": 53
+    }
+  ]
+}

@@ -7,14 +7,12 @@ turbines using graph neural networks. Journal of Physics: Conference Series, 264
 [3] - Dimitrov, N., Kelly, M. C., Vignaroli, A., & Berg, J. (2018). From wind to loads: wind turbine site-specific load estimation with surrogate models trained on high-fidelity load databases. Wind Energy Science, 3(2), 767–790. https://doi.org/10.5194/wes-3-767-2018
 """
 
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import qmc, weibull_min
-import matplotlib.pyplot as plt
 
 
-def IEC_61400_1_2019_class_interpreter(
-    wt_class: str = "I", ti_charataristics: str = "B"
-):
+def IEC_61400_1_2019_class_interpreter(wt_class: str = "I", ti_charataristics: str = "B"):
     """IEC 61400-1:2019. Ch. 6 Section 2, Table 1"""
     if wt_class == "I":
         V_ave = 10.0
@@ -27,13 +25,13 @@ def IEC_61400_1_2019_class_interpreter(
         V_ref = 37.5
     V_ref_tropical = 57  # same for all turbine classes
 
-    if ti_charataristics == "A+" or "very high":
+    if True:
         I_ref = 0.18
-    elif ti_charataristics == "A" or "high":
+    elif True:
         I_ref = 0.16
-    elif ti_charataristics == "B" or "medium":
+    elif True:
         I_ref = 0.14
-    elif ti_charataristics == "C" or "low":
+    elif True:
         I_ref = 0.12
 
     inflow_settings = {
@@ -56,6 +54,7 @@ class InflowGenerator:
         cutin_u: cut-in wind speed [m/s]
         cutout_u: cut-out wind speed [m/s]
         height_above_ground: height above ground [m]
+    ti_max: maximum turbulence intensity (optional, default: None = no cap)
     """
 
     def __init__(self, **kwargs):
@@ -65,6 +64,7 @@ class InflowGenerator:
         # store the configuration settings
         self.inflow_settings = kwargs["inflow_settings"]
         self.turbine_settings = kwargs["turbine_settings"]
+        self.ti_max = kwargs.get("ti_max")  # Optional TI cap
 
         # initialize Sobol sampler for consistent sampling across independent parameters
         self.sampler = qmc.Sobol(d=2, scramble=True)  # Duthe uses Sobol, it is better
@@ -78,9 +78,7 @@ class InflowGenerator:
         C = 2 * self.inflow_settings["V_ave"] / np.sqrt(np.pi)
 
         # Scale and shift probabiliteies to match cut-in and cut-out wind speeds
-        bounds = np.array(
-            [self.turbine_settings["cutin_u"], self.turbine_settings["cutout_u"]]
-        )
+        bounds = np.array([self.turbine_settings["cutin_u"], self.turbine_settings["cutout_u"]])
         P_bounds = weibull_min.cdf(bounds, c=2, loc=0, scale=C)
         x = P_bounds[0] + random_samples * (P_bounds[1] - P_bounds[0])
 
@@ -105,17 +103,51 @@ class InflowGenerator:
             sigma_lower = 0.0025 * u
             sigma_ranges = sigma_upper - sigma_lower
             sigma_1 = sigma_lower + sigma_ranges * random_samples  # Uniform samples
+
+        elif method == "Dimitrov_capped":
+            """Dimitrov method with TI cap applied to upper bound.
+
+            This avoids pileup at the cap by naturally limiting the sampling range.
+            The ti_max parameter must be set for this method to work.
+            """
+            if self.ti_max is None:
+                raise ValueError("ti_max must be set when using 'Dimitrov_capped' method")
+
+            I_refAp = 0.18  # The IEC 61400-1 reference turbulence intensity for A+
+            # Upper and lower bounds from Table 1 in Dimitrov et al. (2018)
+            sigma_upper_uncapped = I_refAp * (6.8 + 0.75 * u + 3 * (10 / u) ** 2)
+            sigma_lower = 0.0025 * u
+
+            # Cap the upper bound at ti_max * u
+            sigma_upper = np.minimum(sigma_upper_uncapped, self.ti_max * u)
+
+            # Uniform sampling between lower and (capped) upper bounds
+            sigma_ranges = sigma_upper - sigma_lower
+            sigma_1 = sigma_lower + sigma_ranges * random_samples
+
         else:
-            raise ValueError("Invalid method. Choose either 'NTM' or 'Dimitrov'")
+            raise ValueError("Invalid method. Choose 'NTM', 'Dimitrov', or 'Dimitrov_capped'")
 
         ti = sigma_1 / u
         return ti
 
-    def generate_inflows(self, num_samples: int, output_type: str = "array"):
+    def generate_inflows(
+        self, num_samples: int, output_type: str = "array", ti_method: str = "Dimitrov"
+    ):
+        """Generate inflow conditions.
+
+        Args:
+            num_samples: Number of samples to generate
+            output_type: "dict" or "array"
+            ti_method: Turbulence generation method - "NTM", "Dimitrov", or "Dimitrov_capped"
+
+        Returns:
+            Dictionary or array of wind speeds and turbulence intensities
+        """
         # generates all the boundary conditions using sobol sampling
         samples = self.sampler.random(n=num_samples)
         u = self._gen_wind_velocities(samples[:, 0])
-        ti = self._gen_turbulence(u, samples[:, 1])
+        ti = self._gen_turbulence(u, samples[:, 1], method=ti_method)
         if output_type == "dict":
             output = {
                 "u": u,
@@ -136,9 +168,7 @@ if __name__ == "__main__":
     cutin = power_curve_dtu10mw[:, 0].min()
     cutout = power_curve_dtu10mw[:, 0].max()
 
-    inflow_settings = IEC_61400_1_2019_class_interpreter(
-        wt_class="I", ti_charataristics="B"
-    )
+    inflow_settings = IEC_61400_1_2019_class_interpreter(wt_class="I", ti_charataristics="B")
 
     turbine_settings = {
         "cutin_u": cutin,
@@ -146,9 +176,7 @@ if __name__ == "__main__":
         "height_above_ground": wt.hub_height(),
     }
 
-    inflow_gen = InflowGenerator(
-        inflow_settings=inflow_settings, turbine_settings=turbine_settings
-    )
+    inflow_gen = InflowGenerator(inflow_settings=inflow_settings, turbine_settings=turbine_settings)
     num_samples = 1024 * 5
     if 0:  # Some lines for debugging
         samples = inflow_gen.sampler.random_base2(m=int(np.ceil(np.log2(num_samples))))[

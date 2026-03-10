@@ -1,14 +1,46 @@
-*.nc
-*.png
-*.zip
-*.pyc
-*.pdf
-*.err
-*.log
-data/*
-# pixi environments
-.pixi
-*.egg-info
+# Large AWF dataset files
+data/awf_database.nc
+data/awf/
+data/awf_graphs*/
 
-!*layout_and_inflow.pdf
-!*layout_and_inflow.png
+# Python cache files
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+
+# Ignore log files
+*.log
+*.err
+
+# Generated dataset files - ignore all .zip files
+data/**/*.zip
+data/**/*.npz
+*.npz
+
+# Generated dataset files - ignore most .npz files except metadata
+data/**/*.npz
+!data/**/layouts_metadata.npz
+!data/**/inflows_metadata.npz
+
+# Generated stats files (can be regenerated)
+data/**/stats.json
+data/**/scale_stats.json
+
+# Specific large dataset directories (complete ignore)
+data/turbopark_250layouts/
+data/turbopark_*layouts_full/
+
+# Article experiments (ignore generated content, keep .gitkeep)
+experiments/article1/cache/*
+!experiments/article1/cache/.gitkeep
+experiments/article1/figures/*
+!experiments/article1/figures/.gitkeep
+experiments/article1/outputs/*
+!experiments/article1/outputs/.gitkeep
+experiments/article2/cache/*
+!experiments/article2/cache/.gitkeep
+experiments/article2/figures/*
+!experiments/article2/figures/.gitkeep
+experiments/article2/outputs/*
+!experiments/article2/outputs/.gitkeep

@@ -1,6 +1,7 @@
+"""Sample weighting utilities for dataset balancing."""
+
 import numpy as np
 from matplotlib import pyplot as plt
-import matplotlib as mpl
 
 
 def clipper(x, a_min, a_max):
@@ -59,8 +60,6 @@ if __name__ == "__main__":
     y_max = np.max(y)
 
     xx, yy = np.meshgrid(x, y, indexing="ij")
-
-    from scipy.optimize import minimize
 
     y_range = np.max(y) - np.min(y)
     k_y_2 = 0.5 / ((y_range / 2) ** 2)

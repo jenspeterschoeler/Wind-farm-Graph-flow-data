@@ -1,5 +1,6 @@
+"""Graph conversion utilities for PyWake data."""
+
 import math
-from typing import Dict
 
 import numpy as np
 import torch
@@ -28,10 +29,10 @@ def to_graph(
     add_edge: str = "polar",
     node_features: np.ndarray = None,
     global_features: np.ndarray = None,
-    rel_wd: float = 270,
+    rel_wd: float | None = 270,
     trunk_inputs=None,
     output_features=None,
-    layout_stats: Dict = None,
+    layout_stats: dict = None,
 ) -> PyGTupleData:
     """
     Converts np.array to torch_geometric.data.data.Data object with the specified connectivity and edge feature type.
@@ -49,18 +50,14 @@ def to_graph(
         graph = edge_fn(delaunay_fn(raw_graph_data))
 
     else:
-        raise ValueError(
-            "Please define the connectivity scheme (available types: : 'delaunay')"
-        )
+        raise ValueError("Please define the connectivity scheme (available types: : 'delaunay')")
 
     if add_edge == "polar".casefold():
         polar_fn = Polar(norm=False)
         graph = polar_fn(graph)
         if rel_wd is not None:
             edge_rel_wd = math.radians(270) - graph.edge_attr[:, 1]
-            graph.edge_attr = torch.cat(
-                (graph.edge_attr, edge_rel_wd.unsqueeze(1)), dim=1
-            )
+            graph.edge_attr = torch.cat((graph.edge_attr, edge_rel_wd.unsqueeze(1)), dim=1)
     elif add_edge == "cartesian".casefold():
         cartesian_fn = Cartesian(norm=False)
         distance_fn = Distance(norm=False)

@@ -1,25 +1,33 @@
+"""Inflow and layout plotting for Article 1 experiments."""
+
 # Add main path to sys path
-import os
 import sys
+from pathlib import Path
 
-import matplotlib
-import numpy as np
-from matplotlib import pyplot as plt
-from matplotlib.lines import Line2D
+# Get the data-generation root directory (two levels up from article1/)
+_THIS_DIR = Path(__file__).parent
+_DATA_GEN_ROOT = _THIS_DIR.parent.parent
+sys.path.insert(0, str(_DATA_GEN_ROOT))
 
-np.random.seed(8)
+import matplotlib  # noqa: E402
+import numpy as np  # noqa: E402
+from matplotlib import pyplot as plt  # noqa: E402
+from matplotlib.lines import Line2D  # noqa: E402
+from py_wake.examples.data.dtu10mw import DTU10MW  # noqa: E402
+from py_wake.examples.data.dtu10mw import power_curve as power_curve_dtu10mw  # noqa: E402
 
-file_path = os.path.abspath(".")
-main_path = os.path.dirname(file_path)
-sys.path.append(main_path)
-
-
-from py_wake.examples.data.dtu10mw import DTU10MW
-from py_wake.examples.data.dtu10mw import power_curve as power_curve_dtu10mw
+from utils.inflow_generator import (  # noqa: E402
+    IEC_61400_1_2019_class_interpreter,
+    InflowGenerator,
+)
+from utils.layout_generator import (  # noqa: E402
+    PLayGen,
+    layout_limits_run1,
+    setup_eval_layout,
+)
 
 # set random seeds for reproducibility
-from inflow_generator import IEC_61400_1_2019_class_interpreter, InflowGenerator
-from layout_generator import PLayGen, layout_limits_run1, setup_eval_layout
+np.random.seed(8)
 
 # set style to classic, but remove graybackground
 plt.style.use("classic")
@@ -52,9 +60,7 @@ while (
     if (
         eval_layout(
             cluster_layout,
-            layout_generator._interturbine_spacing_(
-                cluster_layout[:, 0], cluster_layout[:, 1]
-            ),
+            layout_generator._interturbine_spacing_(cluster_layout[:, 0], cluster_layout[:, 1]),
         )
         and keep_updating_cluster
     ):
@@ -65,9 +71,7 @@ while (
     if (
         eval_layout(
             string_layout,
-            layout_generator._interturbine_spacing_(
-                string_layout[:, 0], string_layout[:, 1]
-            ),
+            layout_generator._interturbine_spacing_(string_layout[:, 0], string_layout[:, 1]),
         )
         and keep_updating_single_string
     ):
@@ -110,9 +114,7 @@ hub_height = wt.hub_height()
 cutin = power_curve_dtu10mw[:, 0].min()
 cutout = power_curve_dtu10mw[:, 0].max()
 
-inflow_settings = IEC_61400_1_2019_class_interpreter(
-    wt_class="I", ti_charataristics="B"
-)
+inflow_settings = IEC_61400_1_2019_class_interpreter(wt_class="I", ti_charataristics="B")
 
 turbine_settings = {
     "cutin_u": cutin,
@@ -120,9 +122,7 @@ turbine_settings = {
     "height_above_ground": wt.hub_height(),
 }
 
-inflow_gen = InflowGenerator(
-    inflow_settings=inflow_settings, turbine_settings=turbine_settings
-)
+inflow_gen = InflowGenerator(inflow_settings=inflow_settings, turbine_settings=turbine_settings)
 # num_samples = int(50000/100)
 # train = int(0.6 * num_samples)
 # test = int(0.2 * num_samples)
@@ -193,7 +193,7 @@ for i, (ax, layout, title) in enumerate(
         figure_ids[i],
         horizontalalignment="center",
         verticalalignment="center",
-        transform=ax.transAxes
+        transform=ax.transAxes,
     )
     ax.text(
         0.05,
@@ -256,13 +256,11 @@ lower_axes[0].text(
     figure_ids[4],
     horizontalalignment="center",
     verticalalignment="center",
-    transform=lower_axes[0].transAxes
+    transform=lower_axes[0].transAxes,
 )
 lower_axes[0].set_xlabel("$p_{U}$ [-]")
 lower_axes[0].set_ylabel(r"$p_\mathrm{TI}$ [-]")
-lower_axes[0].tick_params(
-    axis="x", rotation=45
-)  # rotate x-axis ticks for better readability
+lower_axes[0].tick_params(axis="x", rotation=45)  # rotate x-axis ticks for better readability
 lower_axes[0].xaxis.set_label_coords(0.5, -0.2)
 
 
@@ -280,7 +278,7 @@ lower_axes[1].text(
     figure_ids[5],
     horizontalalignment="center",
     verticalalignment="center",
-    transform=lower_axes[1].transAxes
+    transform=lower_axes[1].transAxes,
 )
 lower_axes[1].set_xlabel(r"$U\ [\mathrm{ms}^{-1}]$")
 lower_axes[1].set_ylabel(r"Number of samples [-]")
@@ -300,9 +298,9 @@ lower_axes[2].text(
     figure_ids[6],
     horizontalalignment="center",
     verticalalignment="center",
-    transform=lower_axes[2].transAxes
+    transform=lower_axes[2].transAxes,
 )
-lower_axes[2].set_xlabel(r"$\mathrm{TI}$ [-]")
+lower_axes[2].set_xlabel(r"$I_0$ [-]")
 lower_axes[2].set_ylabel(r"Number of samples [-]")
 
 
@@ -315,9 +313,7 @@ labels_u = np.concatenate(
     [np.full(len(s), i) for i, s in enumerate(u_split)]
 )  # 0=train,1=val,2=test
 
-rng = np.random.default_rng(
-    0
-)  # fixed seed for reproducibility (remove seed if undesired)
+rng = np.random.default_rng(0)  # fixed seed for reproducibility (remove seed if undesired)
 perm = rng.permutation(len(labels_u))
 # drop 80 percent for plotting speed
 perm = perm[::downsampling_factor]
@@ -371,10 +367,10 @@ lower_axes[3].text(
     figure_ids[7],
     horizontalalignment="center",
     verticalalignment="center",
-    transform=lower_axes[3].transAxes
+    transform=lower_axes[3].transAxes,
 )
 lower_axes[3].set_xlabel(r"$U\ [\mathrm{ms}^{-1}]$")
-lower_axes[3].set_ylabel(r"$\mathrm{TI}$")
+lower_axes[3].set_ylabel(r"$I_0$ [-]")
 
 marker_size = 10
 legend_elements = [
@@ -436,5 +432,5 @@ figure.legend(
 
 
 plt.tight_layout()
-plt.savefig("layout_and_inflow.pdf", bbox_inches="tight")
-# plt.savefig("layout_and_inflow.png", bbox_inches="tight", dpi=300)
+plt.savefig(_THIS_DIR / "figures" / "layout_and_inflow.pdf", bbox_inches="tight")
+# plt.savefig(_THIS_DIR / "figures" / "layout_and_inflow.png", bbox_inches="tight", dpi=300)
